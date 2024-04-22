@@ -20,7 +20,6 @@ model = load_model('fish_model.h5')
 
 IMAGE_SIZE = [200, 200]
 
-global prediction
 
 # names of all fish trained in model using scientific names
 labels = [
@@ -73,7 +72,6 @@ fish_ranges = {
 # function to receive fish image from frontend
 @app.route('/', methods=['POST'])
 def process_image():
-    global prediction
     # Check if an image was uploaded
     if 'file' not in request.files:
         return jsonify({"message": "No file provided"}), 400
@@ -83,12 +81,14 @@ def process_image():
         return jsonify({"message": "No file selected for uploading"}), 400
 
     # call functions below to get prediction, check if fish can live in tank conditions, and get common name
-    can_live = check_tank_conditions()
-    common_name = get_fish_common_name()
-
     img_bytes = file.read()
     prediction = fish_determine(img_bytes)
-    return jsonify({"prediction": prediction, "can_live" : can_live, "common_name" : common_name}), 200
+
+    readings = pull_data()
+    can_live = check_tank_conditions(prediction)
+    common_name = get_fish_common_name(prediction)
+    
+    return jsonify({"prediction": prediction, "can_live" : can_live, "common_name" : common_name, "readings" : readings}), 200
     
 # function to check whether fish is recognized and determines if fish species can survive in conditions
 def fish_determine(image_bytes):
@@ -113,10 +113,9 @@ def pull_data():
         print("Failed to retrieve data")
 
 # function to check if fish can survive in tank conditions
-def check_tank_conditions():
-    global prediction
+def check_tank_conditions(prediction):
     tank_readings = pull_data()
-    temp, pH = tank_readings['temp'], tank_readings['ph']
+    temp, pH = tank_readings[0], tank_readings[1]
     for fish in fish_ranges:
         if prediction == fish:
             # check if pH and temperature are within the fish's range
@@ -126,8 +125,7 @@ def check_tank_conditions():
                 return False
             
 # function to get common name of fish based on their scientific name 
-def get_fish_common_name():
-    global prediction
+def get_fish_common_name(prediction):
     for fish in fish_ranges:
         if prediction == fish:
             name = fish_ranges[fish]['cn']
